@@ -1,11 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { X, ChevronDown, MoreHorizontal, ArrowLeft, ArrowRight } from 'lucide-react';
+import { X, ChevronDown, MoreHorizontal, ArrowLeft, ArrowRight, Search, Layers, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useDocuments } from '@/store/documents';
+import { useTabManager } from '@/store/tabManager';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import StackedTab from './StackedTab';
+import TabSearch from './TabSearch';
+import useShortcuts from '@/hooks/useShortcuts';
 
 interface Tab {
   id: string;
@@ -15,6 +19,29 @@ interface Tab {
   isLocked?: boolean;
   filePath?: string;
   documentId?: string;
+  groupId?: string;
+  color?: string;
+  stackId?: string;
+  lastActivated?: number;
+}
+
+interface TabGroup {
+  id: string;
+  name: string;
+  color: string;
+  tabs: string[]; // tab IDs
+  isCollapsed: boolean;
+  isLocked: boolean;
+  position: number;
+}
+
+interface TabStack {
+  id: string;
+  tabs: string[]; // tab IDs
+  activeTabIndex: number;
+  isStacked: boolean;
+  stackTitle?: string;
+  panelId: string;
 }
 
 interface TabProps {
@@ -262,6 +289,7 @@ interface TabBarProps {
   onReorderTabs: (tabs: Tab[]) => void;
   onBack?: () => void;
   onForward?: () => void;
+  panelId?: string;
 }
 
 const TabBar: React.FC<TabBarProps> = ({ 
@@ -280,8 +308,120 @@ const TabBar: React.FC<TabBarProps> = ({
   onRevealInExplorer,
   onReorderTabs,
   onBack,
-  onForward
+  onForward,
+  panelId
 }) => {
+  const [showTabSearch, setShowTabSearch] = useState(false);
+  const [showTabGroups, setShowTabGroups] = useState(false);
+  const { 
+    shouldStackTabs, 
+    settings, 
+    createTabStack, 
+    tabStacks,
+    addToHistory,
+    navigateBack,
+    navigateForward 
+  } = useTabManager();
+
+  // Check if tabs should be stacked
+  const needsStacking = shouldStackTabs(panelId || 'default', tabs.length);
+  
+  // Find existing stack for this panel
+  const existingStack = Object.values(tabStacks).find(stack => stack.panelId === panelId);
+  
+  // Enhanced tab activation with history tracking
+  const handleActivateTab = (tabId: string) => {
+    if (panelId) {
+      addToHistory(panelId, tabId);
+    }
+    onActivateTab(tabId);
+  };
+
+  // Enhanced navigation with history
+  const handleBack = () => {
+    if (panelId) {
+      const tabId = navigateBack(panelId);
+      if (tabId) {
+        onActivateTab(tabId);
+        return;
+      }
+    }
+    onBack?.();
+  };
+
+  const handleForward = () => {
+    if (panelId) {
+      const tabId = navigateForward(panelId);
+      if (tabId) {
+        onActivateTab(tabId);
+        return;
+      }
+    }
+    onForward?.();
+  };
+
+  // Shortcut handlers
+  const { addClosedTab, getLastClosedTab } = useShortcuts({
+    onNewTab: onAddTab,
+    onCloseTab: () => {
+      const activeTab = tabs.find(t => t.isActive);
+      if (activeTab) {
+        addClosedTab({
+          id: activeTab.id,
+          title: activeTab.title,
+          documentId: activeTab.documentId,
+          filePath: activeTab.filePath
+        });
+        onCloseTab(activeTab.id);
+      }
+    },
+    onNextTab: () => {
+      const activeIndex = tabs.findIndex(t => t.isActive);
+      const nextIndex = (activeIndex + 1) % tabs.length;
+      if (tabs[nextIndex]) handleActivateTab(tabs[nextIndex].id);
+    },
+    onPrevTab: () => {
+      const activeIndex = tabs.findIndex(t => t.isActive);
+      const prevIndex = (activeIndex - 1 + tabs.length) % tabs.length;
+      if (tabs[prevIndex]) handleActivateTab(tabs[prevIndex].id);
+    },
+    onJumpToTab: (index: number) => {
+      const targetTab = index === -1 ? tabs[tabs.length - 1] : tabs[index];
+      if (targetTab) handleActivateTab(targetTab.id);
+    },
+    onQuickSearch: () => setShowTabSearch(true),
+    onReopenClosedTab: () => {
+      const closedTab = getLastClosedTab();
+      if (closedTab) {
+        // Recreate the tab (this would need to be implemented in the parent component)
+        console.log('Reopening tab:', closedTab);
+      }
+    },
+    onSplitHorizontal: () => {
+      const activeTab = tabs.find(t => t.isActive);
+      if (activeTab) onSplitHorizontal(activeTab.id);
+    },
+    onSplitVertical: () => {
+      const activeTab = tabs.find(t => t.isActive);
+      if (activeTab) onSplitVertical(activeTab.id);
+    },
+    onToggleTabGroups: () => setShowTabGroups(!showTabGroups),
+    onDuplicateTab: () => {
+      const activeTab = tabs.find(t => t.isActive);
+      if (activeTab) onDuplicate(activeTab.id);
+    },
+    onLockTab: () => {
+      const activeTab = tabs.find(t => t.isActive);
+      if (activeTab) onToggleLock(activeTab.id);
+    },
+    onCloseOtherTabs: () => {
+      const activeTab = tabs.find(t => t.isActive);
+      if (activeTab) onCloseOthers(activeTab.id);
+    },
+    onCloseAllTabs: onCloseAll,
+    onNavigateBack: handleBack,
+    onNavigateForward: handleForward,
+  });
   // 排序容器内的单个可排序 Tab
   const SortableTab: React.FC<{ tab: Tab }> = ({ tab }) => {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tab.id, disabled: tab.isLocked });
@@ -295,7 +435,7 @@ const TabBar: React.FC<TabBarProps> = ({
           key={tab.id}
           tab={tab}
           onClose={onCloseTab}
-          onActivate={onActivateTab}
+          onActivate={handleActivateTab}
           onCloseOthers={onCloseOthers}
           onCloseAll={onCloseAll}
           onSplitHorizontal={onSplitHorizontal}
@@ -322,14 +462,111 @@ const TabBar: React.FC<TabBarProps> = ({
     onReorderTabs(newOrder);
   };
 
+  // Render stacked tabs if needed
+  if (needsStacking && existingStack) {
+    const stackTabs = existingStack.tabs
+      .map(tabId => tabs.find(t => t.id === tabId))
+      .filter((tab): tab is Tab => !!tab);
+    
+    return (
+      <div className="flex items-center bg-panel border-b border-border">
+        {/* Navigation controls */}
+        <div className="flex items-center px-2 border-r border-border">
+          <button className="p-1 hover:bg-nav-hover rounded" onClick={handleBack}>
+            <ArrowLeft className="w-4 h-4 text-muted-foreground" />
+          </button>
+          <button className="p-1 hover:bg-nav-hover rounded" onClick={handleForward}>
+            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Stacked tabs */}
+        <div className="flex flex-1 overflow-hidden">
+          <StackedTab
+            tabs={stackTabs}
+            activeTabIndex={existingStack.activeTabIndex}
+            stackId={existingStack.id}
+            onTabClick={handleActivateTab}
+            onTabClose={onCloseTab}
+            onTabAction={(tabId, action) => {
+              // Handle tab actions
+              switch (action) {
+                case 'duplicate':
+                  onDuplicate(tabId);
+                  break;
+                case 'lock':
+                  onToggleLock(tabId);
+                  break;
+                // Add more actions as needed
+              }
+            }}
+          />
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center px-2 border-l border-border">
+          <button 
+            onClick={() => setShowTabSearch(true)}
+            className="p-1 hover:bg-nav-hover rounded mr-1"
+            title="搜索标签页 (Ctrl+P)"
+          >
+            <Search className="w-4 h-4 text-muted-foreground" />
+          </button>
+
+          <button 
+            onClick={onAddTab}
+            className="p-1 hover:bg-nav-hover rounded"
+            title="新建标签页 (Ctrl+T)"
+          >
+            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1 hover:bg-nav-hover rounded ml-1">
+                <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-dropdown">
+              <DropdownMenuItem 
+                className="text-sm hover:bg-secondary cursor-pointer"
+                onClick={() => setShowTabGroups(!showTabGroups)}
+              >
+                <Layers className="w-4 h-4 mr-2" />
+                {showTabGroups ? '隐藏' : '显示'}标签页组
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                className="text-sm hover:bg-secondary cursor-pointer"
+                onClick={onAddTab}
+              >
+                新标签页
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Tab Search Dialog */}
+        <TabSearch
+          isOpen={showTabSearch}
+          onClose={() => setShowTabSearch(false)}
+          tabs={tabs}
+          onTabSelect={handleActivateTab}
+          currentPanelId={panelId}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center bg-panel border-b border-border">
       {/* Navigation controls */}
       <div className="flex items-center px-2 border-r border-border">
-        <button className="p-1 hover:bg-nav-hover rounded" onClick={onBack}>
+        <button className="p-1 hover:bg-nav-hover rounded" onClick={handleBack}>
           <ArrowLeft className="w-4 h-4 text-muted-foreground" />
         </button>
-        <button className="p-1 hover:bg-nav-hover rounded" onClick={onForward}>
+        <button className="p-1 hover:bg-nav-hover rounded" onClick={handleForward}>
           <ArrowRight className="w-4 h-4 text-muted-foreground" />
         </button>
       </div>
@@ -345,11 +582,20 @@ const TabBar: React.FC<TabBarProps> = ({
         </DndContext>
       </div>
 
-      {/* Add tab button */}
+      {/* Controls */}
       <div className="flex items-center px-2 border-l border-border">
+        <button 
+          onClick={() => setShowTabSearch(true)}
+          className="p-1 hover:bg-nav-hover rounded mr-1"
+          title="搜索标签页 (Ctrl+P)"
+        >
+          <Search className="w-4 h-4 text-muted-foreground" />
+        </button>
+
         <button 
           onClick={onAddTab}
           className="p-1 hover:bg-nav-hover rounded"
+          title="新建标签页 (Ctrl+T)"
         >
           <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -366,9 +612,28 @@ const TabBar: React.FC<TabBarProps> = ({
           <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-dropdown">
             <DropdownMenuItem 
               className="text-sm hover:bg-secondary cursor-pointer"
+              onClick={() => setShowTabGroups(!showTabGroups)}
+            >
+              <Layers className="w-4 h-4 mr-2" />
+              {showTabGroups ? '隐藏' : '显示'}标签页组
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              className="text-sm hover:bg-secondary cursor-pointer"
               onClick={onAddTab}
             >
               新标签页
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              className="text-sm hover:bg-secondary cursor-pointer"
+              onClick={() => {
+                if (panelId && tabs.length > settings.maxVisibleTabs) {
+                  createTabStack(panelId, tabs.map(t => t.id));
+                }
+              }}
+              disabled={tabs.length <= settings.maxVisibleTabs}
+            >
+              堆叠标签页
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -377,6 +642,15 @@ const TabBar: React.FC<TabBarProps> = ({
           <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
         </button>
       </div>
+      
+      {/* Tab Search Dialog */}
+      <TabSearch
+        isOpen={showTabSearch}
+        onClose={() => setShowTabSearch(false)}
+        tabs={tabs}
+        onTabSelect={handleActivateTab}
+        currentPanelId={panelId}
+      />
     </div>
   );
 };

@@ -2,10 +2,14 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TabBar, type TabType } from './Tab';
 import Editor from './Editor';
+import LinkedViews from './LinkedViews';
+import WorkspaceManager from './WorkspaceManager';
 import { useDocuments } from '@/store/documents';
+import { useTabManager } from '@/store/tabManager';
 import { cn } from '@/lib/utils';
-import { FolderPlus, FilePlus, FileText, MoreHorizontal } from 'lucide-react';
+import { FolderPlus, FilePlus, FileText, MoreHorizontal, Layout, Save } from 'lucide-react';
 import { useFileTree } from '@/store/filetree';
+import useShortcuts from '@/hooks/useShortcuts';
 
 interface PanelNode {
   id: string;
@@ -26,6 +30,8 @@ interface FileNode {
 
 const ObsidianLayout: React.FC = () => {
   const { createDocument, renameDocument } = useDocuments();
+  const { loadWorkspaceLayout } = useTabManager();
+  const [showWorkspaceManager, setShowWorkspaceManager] = useState(false);
   const [panelTree, setPanelTree] = useState<PanelNode>({
     id: 'root',
     type: 'split',
@@ -68,6 +74,17 @@ const ObsidianLayout: React.FC = () => {
   });
 
   const { rootId, listChildren, createFile, createFolder, nodesById } = useFileTree();
+
+  // Workspace management handlers
+  const handleLoadWorkspaceLayout = useCallback((layout: any) => {
+    setPanelTree(layout.panelTree);
+    setShowWorkspaceManager(false);
+  }, []);
+
+  // Global shortcuts
+  useShortcuts({
+    onSaveWorkspace: () => setShowWorkspaceManager(true),
+  });
 
   // 初始化为每个初始标签创建文档
   useEffect(() => {
@@ -385,6 +402,7 @@ const ObsidianLayout: React.FC = () => {
             onReorderTabs={(newTabs) => updatePanelTabs(node.id, newTabs)}
             onBack={() => goBack(node.id)}
             onForward={() => goForward(node.id)}
+            panelId={node.id}
           />
           <div className="flex flex-1 min-h-0">
             {/* 文件树侧边栏 */}
@@ -450,8 +468,18 @@ const ObsidianLayout: React.FC = () => {
               </div>
             </div>
             {/* 编辑器区域 */}
-            <div className="flex-1 min-w-0">
-              <Editor documentId={node.tabs.find(t => t.isActive)?.documentId} />
+            <div className="flex flex-1 min-w-0">
+              <div className="flex-1">
+                <Editor documentId={node.tabs.find(t => t.isActive)?.documentId} />
+              </div>
+              
+              {/* 关联视图 */}
+              <LinkedViews
+                activeTab={node.tabs.find(t => t.isActive)}
+                panelId={node.id}
+                position="right"
+                className="w-64"
+              />
             </div>
           </div>
         </div>
@@ -502,7 +530,43 @@ const ObsidianLayout: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      {renderPanelNode(panelTree)}
+      {/* Top toolbar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-panel border-b border-border">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground">Obsidian Clone</span>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowWorkspaceManager(true)}
+            className="p-1 hover:bg-nav-hover rounded"
+            title="工作区管理 (Ctrl+Shift+S)"
+          >
+            <Layout className="w-4 h-4 text-muted-foreground" />
+          </button>
+          
+          <button
+            onClick={() => setShowWorkspaceManager(true)}
+            className="p-1 hover:bg-nav-hover rounded"
+            title="保存工作区"
+          >
+            <Save className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+      </div>
+      
+      {/* Main content */}
+      <div className="flex-1">
+        {renderPanelNode(panelTree)}
+      </div>
+      
+      {/* Workspace Manager */}
+      <WorkspaceManager
+        isOpen={showWorkspaceManager}
+        onClose={() => setShowWorkspaceManager(false)}
+        currentPanelTree={panelTree}
+        onLoadLayout={handleLoadWorkspaceLayout}
+      />
     </div>
   );
 };
