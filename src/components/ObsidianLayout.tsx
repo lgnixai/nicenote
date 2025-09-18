@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TabBar, type TabType } from './Tab';
 import Editor from './Editor';
-import LinkedViews from './LinkedViews';
 import WorkspaceManager from './WorkspaceManager';
 import { useDocuments } from '@/store/documents';
 import { useTabManager } from '@/store/tabManager';
@@ -29,7 +28,7 @@ interface FileNode {
 }
 
 const ObsidianLayout: React.FC = () => {
-  const { createDocument, renameDocument } = useDocuments();
+  const { createDocument, renameDocument, getDocument } = useDocuments();
   const { loadWorkspaceLayout } = useTabManager();
   const [showWorkspaceManager, setShowWorkspaceManager] = useState(false);
   const [panelTree, setPanelTree] = useState<PanelNode>({
@@ -186,16 +185,27 @@ const ObsidianLayout: React.FC = () => {
 
     const targetTab = panel.tabs.find(tab => tab.id === id);
     if (targetTab) {
+      // Get the original document content if it exists
+      const originalDoc = targetTab.documentId ? getDocument(targetTab.documentId) : null;
+      const documentId = createDocument(
+        `${targetTab.title} - 副本`, 
+        { 
+          content: originalDoc?.content || '', 
+          language: originalDoc?.language || 'markdown' 
+        }
+      );
+      
       const newTab = {
         ...targetTab,
         id: Date.now().toString(),
         title: `${targetTab.title} - 副本`,
-        isActive: false
+        isActive: false,
+        documentId
       };
       const newTabs = [...panel.tabs, newTab];
       updatePanelTabs(panelId, newTabs);
     }
-  }, [panelTree, findPanelById, updatePanelTabs]);
+  }, [panelTree, findPanelById, updatePanelTabs, getDocument, createDocument]);
 
   const handleRename = useCallback((panelId: string) => (id: string, newTitle: string) => {
     const panel = findPanelById(panelTree, panelId);
@@ -216,8 +226,21 @@ const ObsidianLayout: React.FC = () => {
     if (!panel?.tabs) return;
 
     const targetTab = panel.tabs.find(tab => tab.id === id);
-    if (targetTab?.filePath) {
-      navigator.clipboard.writeText(targetTab.filePath);
+    if (targetTab) {
+      const pathToCopy = targetTab.filePath || `${targetTab.title}.md`;
+      navigator.clipboard.writeText(pathToCopy).then(() => {
+        // Show success message (you could implement a toast here)
+        console.log('Path copied to clipboard:', pathToCopy);
+      }).catch(() => {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = pathToCopy;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        console.log('Path copied to clipboard (fallback):', pathToCopy);
+      });
     }
   }, [panelTree, findPanelById]);
 
@@ -264,15 +287,25 @@ const ObsidianLayout: React.FC = () => {
   }, [findPanelById, findFirstLeafPanelId, lastActivePanelId]);
 
   const handleRevealInExplorer = useCallback((panelId: string) => (id: string) => {
-    // 在网页环境中，我们可以显示文件路径或其他相关信息
     const panel = findPanelById(panelTree, panelId);
     if (!panel?.tabs) return;
 
     const targetTab = panel.tabs.find(tab => tab.id === id);
     if (targetTab) {
-      alert(`文件位置: ${targetTab.filePath || '新文件'}`);
+      const doc = targetTab.documentId ? getDocument(targetTab.documentId) : null;
+      const fileInfo = [
+        `标题: ${targetTab.title}`,
+        `文件路径: ${targetTab.filePath || '未保存的新文件'}`,
+        `文档ID: ${targetTab.documentId || '无'}`,
+        `创建时间: ${doc ? new Date(doc.createdAt).toLocaleString('zh-CN') : '未知'}`,
+        `最后修改: ${doc ? new Date(doc.updatedAt).toLocaleString('zh-CN') : '未知'}`,
+        `语言: ${doc?.language || '未知'}`,
+        `字符数: ${doc?.content.length || 0}`
+      ].join('\n');
+      
+      alert(`文件信息:\n\n${fileInfo}`);
     }
-  }, [panelTree, findPanelById]);
+  }, [panelTree, findPanelById, getDocument]);
 
   const splitPanel = useCallback((panelId: string, direction: 'horizontal' | 'vertical') => {
     setPanelTree(prevTree => {
@@ -362,7 +395,8 @@ const ObsidianLayout: React.FC = () => {
       const isOnlyPanel = panelTree.type === 'leaf';
       
       if (isRootPanel || isOnlyPanel) {
-        const newTab = { id: Date.now().toString(), title: '新标签页', isActive: true };
+        const documentId = createDocument('新标签页', { content: '', language: 'markdown' });
+        const newTab = { id: Date.now().toString(), title: '新标签页', isActive: true, documentId };
         updatePanelTabs(panelId, [newTab]);
       } else {
         // 否则删除整个面板
@@ -385,7 +419,7 @@ const ObsidianLayout: React.FC = () => {
     updatePanelTabs(panelId, newTabs);
     pushHistory(panelId, id);
     setLastActivePanelId(panelId);
-  }, [panelTree, findPanelById, updatePanelTabs]);
+  }, [panelTree, findPanelById, updatePanelTabs, pushHistory]);
 
   const handleAddTab = useCallback((panelId: string) => () => {
     const panel = findPanelById(panelTree, panelId);
@@ -413,9 +447,10 @@ const ObsidianLayout: React.FC = () => {
   }, [panelTree, findPanelById, updatePanelTabs]);
 
   const handleCloseAll = useCallback((panelId: string) => () => {
-    const newTab = { id: Date.now().toString(), title: '新标签页', isActive: true };
+    const documentId = createDocument('新标签页', { content: '', language: 'markdown' });
+    const newTab = { id: Date.now().toString(), title: '新标签页', isActive: true, documentId };
     updatePanelTabs(panelId, [newTab]);
-  }, [updatePanelTabs]);
+  }, [updatePanelTabs, createDocument]);
 
   const handleSplitHorizontal = useCallback((panelId: string) => (id: string) => {
     splitPanel(panelId, 'horizontal');
@@ -449,17 +484,7 @@ const ObsidianLayout: React.FC = () => {
             panelId={node.id}
           />
           <div className="flex flex-1 min-h-0">
-            <div className="flex flex-1 min-w-0">
-              <div className="flex-1">
-                <Editor documentId={node.tabs.find(t => t.isActive)?.documentId} />
-              </div>
-              <LinkedViews
-                activeTab={node.tabs.find(t => t.isActive)}
-                panelId={node.id}
-                position="right"
-                className="w-64"
-              />
-            </div>
+            <Editor documentId={node.tabs.find(t => t.isActive)?.documentId} />
           </div>
         </div>
       );
@@ -504,7 +529,10 @@ const ObsidianLayout: React.FC = () => {
     handleDuplicate,
     handleRename,
     handleCopyPath,
-    handleRevealInExplorer
+    handleRevealInExplorer,
+    updatePanelTabs,
+    goBack,
+    goForward
   ]);
 
   return (
