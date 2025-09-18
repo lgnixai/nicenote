@@ -153,6 +153,7 @@ const StackedTab: React.FC<StackedTabProps> = ({
           <DropdownMenuContent align="start" className="w-48 bg-card border border-border shadow-dropdown z-50">
             <DropdownMenuItem 
               className="text-sm hover:bg-secondary cursor-pointer"
+              onSelect={handleUnstack}
               onClick={handleUnstack}
             >
               取消堆叠
@@ -160,12 +161,14 @@ const StackedTab: React.FC<StackedTabProps> = ({
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               className="text-sm hover:bg-secondary cursor-pointer"
+              onSelect={() => activeTab && handleCloseOthers(activeTab.id)}
               onClick={() => activeTab && handleCloseOthers(activeTab.id)}
             >
               关闭其他标签页
             </DropdownMenuItem>
             <DropdownMenuItem 
               className="text-sm hover:bg-secondary cursor-pointer"
+              onSelect={handleCloseAll}
               onClick={handleCloseAll}
             >
               关闭所有标签页
