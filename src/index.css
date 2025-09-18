@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Obsidian-inspired design system. All colors MUST be HSL. */
+
+@layer base {
+  :root {
+    /* Core backgrounds */
+    --background: 0 0% 99%;
+    --foreground: 0 0% 15%;
+
+    /* Panel and card backgrounds */
+    --panel: 0 0% 97%;
+    --panel-foreground: 0 0% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 15%;
+
+    /* Tab system */
+    --tab-active: 0 0% 100%;
+    --tab-inactive: 0 0% 95%;
+    --tab-hover: 0 0% 93%;
+    --tab-border: 0 0% 88%;
+
+    /* Navigation and controls */
+    --nav-background: 0 0% 97%;
+    --nav-hover: 0 0% 90%;
+    --nav-border: 0 0% 88%;
+
+    /* Interactive elements */
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 98%;
+    --primary-hover: 262 83% 52%;
+
+    /* Secondary elements */
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 25%;
+    --secondary-hover: 0 0% 92%;
+
+    /* Muted elements */
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 45%;
+
+    /* Accent purple for shortcuts */
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 98%;
+
+    /* Borders and dividers */
+    --border: 0 0% 88%;
+    --divider: 0 0% 92%;
+    --input: 0 0% 88%;
+    --ring: 262 83% 58%;
+
+    /* Destructive actions */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Shadows */
+    --shadow-sm: 0px 1px 2px hsl(0 0% 0% / 0.05);
+    --shadow-dropdown: 0px 4px 12px hsl(0 0% 0% / 0.15);
+
+    --radius: 0.375rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 95%;
+    --panel: 0 0% 9%;
+    --panel-foreground: 0 0% 85%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 95%;
+    --tab-active: 0 0% 12%;
+    --tab-inactive: 0 0% 8%;
+    --tab-hover: 0 0% 10%;
+    --tab-border: 0 0% 20%;
+    --nav-background: 0 0% 9%;
+    --nav-hover: 0 0% 15%;
+    --nav-border: 0 0% 20%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 98%;
+    --primary-hover: 262 83% 65%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 85%;
+    --secondary-hover: 0 0% 20%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 98%;
+    --border: 0 0% 20%;
+    --divider: 0 0% 15%;
+    --input: 0 0% 20%;
+    --ring: 262 83% 58%;
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --shadow-sm: 0px 1px 2px hsl(0 0% 0% / 0.3);
+    --shadow-dropdown: 0px 4px 12px hsl(0 0% 0% / 0.5);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
