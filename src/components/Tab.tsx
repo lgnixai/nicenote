@@ -263,7 +263,9 @@ const Tab: React.FC<TabProps> = ({
         )}
         onClick={(e) => {
           e.stopPropagation();
-          onClose(tab.id);
+          if (!tab.isLocked) {
+            onClose(tab.id);
+          }
         }}
       >
         <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
