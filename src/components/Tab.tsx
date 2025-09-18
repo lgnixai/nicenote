@@ -188,66 +188,66 @@ const Tab: React.FC<TabProps> = ({
         >
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('close')}
+            onSelect={() => handleDropdownClick('close')}
             disabled={tab.isLocked}
           >
             关闭
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('closeOthers')}
+            onSelect={() => handleDropdownClick('closeOthers')}
           >
             关闭其他标签页
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('closeAll')}
+            onSelect={() => handleDropdownClick('closeAll')}
           >
             全部关闭
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('duplicate')}
+            onSelect={() => handleDropdownClick('duplicate')}
           >
             复制标签页
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('rename')}
+            onSelect={() => handleDropdownClick('rename')}
           >
             重命名
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('toggleLock')}
+            onSelect={() => handleDropdownClick('toggleLock')}
           >
             {tab.isLocked ? '解锁' : '锁定'}
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('copyPath')}
+            onSelect={() => handleDropdownClick('copyPath')}
             disabled={!tab.filePath}
           >
             复制文件路径
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('revealInExplorer')}
+            onSelect={() => handleDropdownClick('revealInExplorer')}
           >
             在资源管理器中显示
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('splitHorizontal')}
+            onSelect={() => handleDropdownClick('splitHorizontal')}
           >
             左右分屏
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('splitVertical')}
+            onSelect={() => handleDropdownClick('splitVertical')}
           >
             上下分屏
           </DropdownMenuItem>
