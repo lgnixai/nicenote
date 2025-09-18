@@ -1,39 +1,51 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { Editor as MonacoEditor } from '@monaco-editor/react';
+import { useDocuments } from '@/store/documents';
 
 interface EditorProps {
   className?: string;
+  documentId?: string;
+  fallbackLanguage?: string;
+  fallbackValue?: string;
 }
 
-const Editor: React.FC<EditorProps> = ({ className }) => {
-  const shortcuts = [
-    { text: "创建新文件", shortcut: "⌘ N" },
-    { text: "打开文件", shortcut: "⌘ O" },
-    { text: "查看近期文件", shortcut: "⌘ O" },
-    { text: "关闭标签页", shortcut: "" }
-  ];
+const Editor: React.FC<EditorProps> = ({ 
+  className,
+  documentId,
+  fallbackLanguage = 'markdown',
+  fallbackValue = ''
+}) => {
+  const { getDocument, updateDocumentContent } = useDocuments();
+  const doc = useMemo(() => getDocument(documentId), [getDocument, documentId]);
+
+  const handleChange = useCallback((val?: string) => {
+    if (doc?.id) {
+      updateDocumentContent(doc.id, val ?? '');
+    }
+  }, [doc?.id, updateDocumentContent]);
 
   return (
-    <div className={cn("flex flex-col items-center justify-center h-full bg-card", className)}>
-      <div className="text-center space-y-6">
-        {shortcuts.map((item, index) => (
-          <div key={index} className="group">
-            <button 
-              className={cn(
-                "text-lg font-medium text-accent hover:text-accent/80",
-                "transition-colors duration-150 cursor-pointer"
-              )}
-            >
-              {item.text}
-              {item.shortcut && (
-                <span className="ml-2 text-muted-foreground">
-                  ({item.shortcut})
-                </span>
-              )}
-            </button>
-          </div>
-        ))}
-      </div>
+    <div className={cn("flex-1 min-h-0 h-full bg-card", className)}>
+      <MonacoEditor
+        value={doc?.content ?? fallbackValue}
+        defaultValue={fallbackValue || '# 新标签页\n在此编辑...'}
+        onChange={handleChange}
+        language={doc?.language ?? fallbackLanguage}
+        theme="vs-dark"
+        options={{
+          minimap: { enabled: false },
+          wordWrap: 'on',
+          automaticLayout: true,
+          fontSize: 14,
+          scrollBeyondLastLine: false,
+          smoothScrolling: true,
+          renderWhitespace: 'selection',
+        }}
+        loading={<div className="w-full h-full flex items-center justify-center text-muted-foreground">正在加载编辑器...</div>}
+        height="100%"
+        width="100%"
+      />
     </div>
   );
 };

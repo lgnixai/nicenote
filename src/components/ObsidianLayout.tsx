@@ -1,7 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TabBar, type TabType } from './Tab';
 import Editor from './Editor';
+import { useDocuments } from '@/store/documents';
+import { cn } from '@/lib/utils';
+import { FolderPlus, FilePlus, FileText, MoreHorizontal } from 'lucide-react';
+import { useFileTree } from '@/store/filetree';
 
 interface PanelNode {
   id: string;
@@ -13,7 +17,15 @@ interface PanelNode {
   minSize?: number;
 }
 
+interface FileNode {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  children?: FileNode[];
+}
+
 const ObsidianLayout: React.FC = () => {
+  const { createDocument, renameDocument } = useDocuments();
   const [panelTree, setPanelTree] = useState<PanelNode>({
     id: 'root',
     type: 'split',
@@ -55,6 +67,26 @@ const ObsidianLayout: React.FC = () => {
     ]
   });
 
+  const { rootId, listChildren, createFile, createFolder, nodesById } = useFileTree();
+
+  // 初始化为每个初始标签创建文档
+  useEffect(() => {
+    const attachDocs = (node: PanelNode) => {
+      if (node.type === 'leaf' && node.tabs) {
+        node.tabs = node.tabs.map(t => ({
+          ...t,
+          documentId: t.documentId ?? createDocument(t.title, { content: '', language: 'markdown' })
+        }));
+      }
+      if (node.children) node.children.forEach(attachDocs);
+    };
+    setPanelTree(prev => {
+      const clone = JSON.parse(JSON.stringify(prev)) as PanelNode;
+      attachDocs(clone);
+      return clone;
+    });
+  }, [createDocument]);
+
   const findPanelById = useCallback((tree: PanelNode, id: string): PanelNode | null => {
     if (tree.id === id) return tree;
     if (tree.children) {
@@ -80,6 +112,45 @@ const ObsidianLayout: React.FC = () => {
       return updateNode(prevTree);
     });
   }, []);
+
+  // 历史栈：记录每个叶子面板的激活序列
+  const [historyByPanelId, setHistoryByPanelId] = useState<Record<string, { stack: string[]; index: number }>>({});
+  const pushHistory = useCallback((panelId: string, tabId: string) => {
+    setHistoryByPanelId(prev => {
+      const h = prev[panelId] ?? { stack: [], index: -1 };
+      const newStack = h.stack.slice(0, h.index + 1);
+      if (newStack[newStack.length - 1] !== tabId) newStack.push(tabId);
+      return { ...prev, [panelId]: { stack: newStack, index: newStack.length - 1 } };
+    });
+  }, []);
+  const goBack = useCallback((panelId: string) => {
+    setHistoryByPanelId(prev => {
+      const h = prev[panelId];
+      if (!h || h.index <= 0) return prev;
+      const next = { ...prev, [panelId]: { ...h, index: h.index - 1 } };
+      const targetTabId = next[panelId].stack[next[panelId].index];
+      const panel = findPanelById(panelTree, panelId);
+      if (panel?.tabs) {
+        const newTabs = panel.tabs.map(t => ({ ...t, isActive: t.id === targetTabId }));
+        updatePanelTabs(panelId, newTabs);
+      }
+      return next;
+    });
+  }, [findPanelById, panelTree, updatePanelTabs]);
+  const goForward = useCallback((panelId: string) => {
+    setHistoryByPanelId(prev => {
+      const h = prev[panelId];
+      if (!h || h.index >= h.stack.length - 1) return prev;
+      const next = { ...prev, [panelId]: { ...h, index: h.index + 1 } };
+      const targetTabId = next[panelId].stack[next[panelId].index];
+      const panel = findPanelById(panelTree, panelId);
+      if (panel?.tabs) {
+        const newTabs = panel.tabs.map(t => ({ ...t, isActive: t.id === targetTabId }));
+        updatePanelTabs(panelId, newTabs);
+      }
+      return next;
+    });
+  }, [findPanelById, panelTree, updatePanelTabs]);
 
   const handleToggleLock = useCallback((panelId: string) => (id: string) => {
     const panel = findPanelById(panelTree, panelId);
@@ -112,9 +183,13 @@ const ObsidianLayout: React.FC = () => {
     const panel = findPanelById(panelTree, panelId);
     if (!panel?.tabs) return;
 
-    const newTabs = panel.tabs.map(tab => 
-      tab.id === id ? { ...tab, title: newTitle } : tab
-    );
+    const newTabs = panel.tabs.map(tab => {
+      if (tab.id === id) {
+        if (tab.documentId) renameDocument(tab.documentId, newTitle);
+        return { ...tab, title: newTitle };
+      }
+      return tab;
+    });
     updatePanelTabs(panelId, newTabs);
   }, [panelTree, findPanelById, updatePanelTabs]);
 
@@ -147,7 +222,7 @@ const ObsidianLayout: React.FC = () => {
           const activeTab = node.tabs?.find(tab => tab.isActive);
           const newTab = activeTab 
             ? { ...activeTab, id: Date.now().toString(), isActive: true }
-            : { id: Date.now().toString(), title: '新标签页', isActive: true };
+            : { id: Date.now().toString(), title: '新标签页', isActive: true, documentId: createDocument('新标签页') };
 
           // 创建新的分割面板
           return {
@@ -181,7 +256,7 @@ const ObsidianLayout: React.FC = () => {
       };
       return splitNode(prevTree);
     });
-  }, []);
+  }, [createDocument]);
 
   const removePanelNode = useCallback((panelId: string) => {
     setPanelTree(prevTree => {
@@ -248,20 +323,23 @@ const ObsidianLayout: React.FC = () => {
 
     const newTabs = panel.tabs.map(tab => ({ ...tab, isActive: tab.id === id }));
     updatePanelTabs(panelId, newTabs);
+    pushHistory(panelId, id);
   }, [panelTree, findPanelById, updatePanelTabs]);
 
   const handleAddTab = useCallback((panelId: string) => () => {
     const panel = findPanelById(panelTree, panelId);
     if (!panel?.tabs) return;
 
+    const documentId = createDocument('新标签页', { content: '', language: 'markdown' });
     const newTab = {
       id: Date.now().toString(),
       title: '新标签页',
-      isActive: false
-    };
+      isActive: false,
+      documentId
+    } as TabType;
     const newTabs = [...panel.tabs, newTab];
     updatePanelTabs(panelId, newTabs);
-  }, [panelTree, findPanelById, updatePanelTabs]);
+  }, [panelTree, findPanelById, updatePanelTabs, createDocument]);
 
   const handleCloseOthers = useCallback((panelId: string) => (id: string) => {
     const panel = findPanelById(panelTree, panelId);
@@ -304,8 +382,78 @@ const ObsidianLayout: React.FC = () => {
             onRename={handleRename(node.id)}
             onCopyPath={handleCopyPath(node.id)}
             onRevealInExplorer={handleRevealInExplorer(node.id)}
+            onReorderTabs={(newTabs) => updatePanelTabs(node.id, newTabs)}
+            onBack={() => goBack(node.id)}
+            onForward={() => goForward(node.id)}
           />
-          <Editor />
+          <div className="flex flex-1 min-h-0">
+            {/* 文件树侧边栏 */}
+            <div className="w-56 border-r border-border bg-panel p-2 space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs text-muted-foreground">文件</span>
+                <button className={cn('p-1 hover:bg-nav-hover rounded')}>
+                  <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+              <div className="flex gap-1 px-1">
+                <button className={cn('px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded flex items-center gap-1')} onClick={() => createFolder(rootId)}>
+                  <FolderPlus className="w-3.5 h-3.5" /> 新建文件夹
+                </button>
+                <button className={cn('px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded flex items-center gap-1')} onClick={() => {
+                  const docId = createDocument('未命名.md', { language: 'markdown', content: '' });
+                  createFile(rootId, '未命名.md', docId);
+                }}>
+                  <FilePlus className="w-3.5 h-3.5" /> 新建文件
+                </button>
+              </div>
+              <div className="space-y-1">
+                {listChildren(rootId).length === 0 && (
+                  <div className="text-xs text-muted-foreground px-1">暂无文件</div>
+                )}
+                {listChildren(rootId).map(node => (
+                  <div
+                    key={node.id}
+                    className="flex items-center gap-2 px-1 py-1 rounded hover:bg-nav-hover cursor-pointer"
+                    onDoubleClick={() => {
+                      if (node.type === 'file' && node.documentId) {
+                        // 在当前面板（node.id 仅用于文件树节点，这里选择第一个叶子面板）打开
+                        const openInFirstLeaf = (tree: PanelNode): string | null => {
+                          if (tree.type === 'leaf' && tree.tabs) return tree.id;
+                          if (tree.children) {
+                            for (const c of tree.children) {
+                              const id = openInFirstLeaf(c);
+                              if (id) return id;
+                            }
+                          }
+                          return null;
+                        };
+                        const targetPanelId = openInFirstLeaf(panelTree) ?? 'left';
+                        const panel = findPanelById(panelTree, targetPanelId);
+                        if (!panel?.tabs) return;
+                        const newTab: TabType = {
+                          id: Date.now().toString(),
+                          title: nodesById[node.id].name,
+                          isActive: true,
+                          documentId: node.documentId,
+                          filePath: nodesById[node.id].name
+                        };
+                        const newTabs = panel.tabs.map(t => ({ ...t, isActive: false }));
+                        newTabs.push(newTab);
+                        updatePanelTabs(targetPanelId, newTabs);
+                      }
+                    }}
+                  >
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-foreground truncate">{node.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* 编辑器区域 */}
+            <div className="flex-1 min-w-0">
+              <Editor documentId={node.tabs.find(t => t.isActive)?.documentId} />
+            </div>
+          </div>
         </div>
       );
     }
