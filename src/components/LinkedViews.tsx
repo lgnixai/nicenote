@@ -175,8 +175,8 @@ const ViewContent: React.FC<ViewContentProps> = ({ view, activeTab, content }) =
   };
 
   const renderSearchView = () => {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string; nameMatch: boolean; contentMatches: number; score: number }>>([]);
 
     useEffect(() => {
       if (!searchQuery.trim()) {
