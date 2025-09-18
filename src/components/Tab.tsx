@@ -188,6 +188,7 @@ const Tab: React.FC<TabProps> = ({
         >
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('close')}
             onClick={() => handleDropdownClick('close')}
             disabled={tab.isLocked}
           >
@@ -195,12 +196,14 @@ const Tab: React.FC<TabProps> = ({
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('closeOthers')}
             onClick={() => handleDropdownClick('closeOthers')}
           >
             关闭其他标签页
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('closeAll')}
             onClick={() => handleDropdownClick('closeAll')}
           >
             全部关闭
@@ -208,12 +211,14 @@ const Tab: React.FC<TabProps> = ({
           <DropdownMenuSeparator />
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('duplicate')}
             onClick={() => handleDropdownClick('duplicate')}
           >
             复制标签页
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('rename')}
             onClick={() => handleDropdownClick('rename')}
           >
             重命名
@@ -221,12 +226,14 @@ const Tab: React.FC<TabProps> = ({
           <DropdownMenuSeparator />
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('toggleLock')}
             onClick={() => handleDropdownClick('toggleLock')}
           >
             {tab.isLocked ? '解锁' : '锁定'}
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('copyPath')}
             onClick={() => handleDropdownClick('copyPath')}
             disabled={!tab.filePath}
           >
@@ -234,6 +241,7 @@ const Tab: React.FC<TabProps> = ({
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('revealInExplorer')}
             onClick={() => handleDropdownClick('revealInExplorer')}
           >
             在资源管理器中显示
@@ -241,12 +249,14 @@ const Tab: React.FC<TabProps> = ({
           <DropdownMenuSeparator />
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('splitHorizontal')}
             onClick={() => handleDropdownClick('splitHorizontal')}
           >
             左右分屏
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
+            onSelect={() => handleDropdownClick('splitVertical')}
             onClick={() => handleDropdownClick('splitVertical')}
           >
             上下分屏
