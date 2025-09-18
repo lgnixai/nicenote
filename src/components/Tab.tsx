@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useDocuments } from '@/store/documents';
 import { useTabManager } from '@/store/tabManager';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import StackedTab from './StackedTab';
@@ -57,6 +57,8 @@ interface TabProps {
   onRename: (id: string, newTitle: string) => void;
   onCopyPath?: (id: string) => void;
   onRevealInExplorer?: (id: string) => void;
+  // Drag handle props for dnd-kit: apply only to the tab label area
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
 const Tab: React.FC<TabProps> = ({ 
@@ -71,7 +73,8 @@ const Tab: React.FC<TabProps> = ({
   onDuplicate,
   onRename,
   onCopyPath,
-  onRevealInExplorer
+  onRevealInExplorer,
+  dragHandleProps
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -142,10 +145,11 @@ const Tab: React.FC<TabProps> = ({
           : "bg-tab-inactive hover:bg-tab-hover"
       )}
     >
-      {/* Tab content */}
+      {/* Tab content (drag handle area) */}
       <div 
         className="flex-1 flex items-center px-3 cursor-pointer min-w-0"
         onClick={() => onActivate(tab.id)}
+        {...dragHandleProps}
       >
         {tab.isLocked && (
           <svg className="w-3 h-3 mr-1.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -430,6 +434,11 @@ const TabBar: React.FC<TabBarProps> = ({
     onNavigateBack: handleBack,
     onNavigateForward: handleForward,
   });
+
+  // DnD sensors: require slight pointer movement to start dragging to avoid click conflicts
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
   // 排序容器内的单个可排序 Tab
   const SortableTab: React.FC<{ tab: Tab }> = ({ tab }) => {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tab.id, disabled: tab.isLocked });
@@ -438,7 +447,7 @@ const TabBar: React.FC<TabBarProps> = ({
       transition
     } as React.CSSProperties;
     return (
-      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <div ref={setNodeRef} style={style}>
         <Tab
           key={tab.id}
           tab={tab}
@@ -453,6 +462,7 @@ const TabBar: React.FC<TabBarProps> = ({
           onRename={onRename}
           onCopyPath={onCopyPath}
           onRevealInExplorer={onRevealInExplorer}
+          dragHandleProps={{ ...attributes, ...listeners }}
         />
       </div>
     );
@@ -581,7 +591,8 @@ const TabBar: React.FC<TabBarProps> = ({
 
       {/* Tabs */}
       <div className="flex flex-1 overflow-hidden">
-        <DndContext onDragEnd={handleDragEnd}>
+        {/* Configure sensors to require slight movement before starting drag */}
+        <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
           <SortableContext items={tabs.map(t => t.id)} strategy={horizontalListSortingStrategy}>
             {tabs.map((tab) => (
               <SortableTab key={tab.id} tab={tab} />

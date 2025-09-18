@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronRight, X, Lock, Unlock, Palette, Plus, MoreHorizontal } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useTabManager, Tab, TabGroup as TabGroupType } from '@/store/tabManager';
-import { DndContext, DragEndEvent, DragOverlay } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -53,8 +53,6 @@ const TabGroupItem: React.FC<{ tab: Tab; groupId: string; onTabClick: (tabId: st
     <div 
       ref={setNodeRef} 
       style={style} 
-      {...attributes} 
-      {...listeners}
       className={cn(
         "group relative flex items-center min-w-0 max-w-[200px] h-8",
         "border-r border-tab-border",
@@ -66,6 +64,8 @@ const TabGroupItem: React.FC<{ tab: Tab; groupId: string; onTabClick: (tabId: st
       <div 
         className="flex-1 flex items-center px-3 cursor-pointer min-w-0"
         onClick={() => onTabClick(tab.id)}
+        {...attributes}
+        {...listeners}
       >
         {tab.isLocked && (
           <Lock className="w-3 h-3 mr-1.5 text-muted-foreground" />
@@ -148,6 +148,11 @@ const TabGroup: React.FC<TabGroupProps> = ({
     const newOrder = arrayMove(tabs, oldIndex, newIndex);
     onReorderTabs(newOrder.map(t => t.id));
   };
+
+  // DnD sensors: require slight pointer movement to start dragging to avoid click conflicts
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   return (
     <div className="flex flex-col border-b border-border">
@@ -276,7 +281,7 @@ const TabGroup: React.FC<TabGroupProps> = ({
       {/* Group tabs */}
       {!group.isCollapsed && (
         <div className="flex overflow-x-auto">
-          <DndContext onDragEnd={handleDragEnd}>
+          <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
             <SortableContext items={tabs.map(t => t.id)} strategy={horizontalListSortingStrategy}>
               {tabs.map(tab => (
                 <TabGroupItem
