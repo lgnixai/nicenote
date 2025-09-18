@@ -295,12 +295,12 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleLoadLayout(layout.id)}>
+                            <DropdownMenuItem onSelect={() => handleLoadLayout(layout.id)}>
                               <FolderOpen className="w-4 h-4 mr-2" />
                               加载布局
                             </DropdownMenuItem>
                             <DropdownMenuItem 
-                              onClick={() => handleSetDefault(layout.id)}
+                              onSelect={() => handleSetDefault(layout.id)}
                               disabled={layout.isDefault}
                             >
                               {layout.isDefault ? (
@@ -309,12 +309,12 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                                 <><Star className="w-4 h-4 mr-2" />设为默认</>
                               )}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleExportLayout(layout)}>
+                            <DropdownMenuItem onSelect={() => handleExportLayout(layout)}>
                               <Download className="w-4 h-4 mr-2" />
                               导出布局
                             </DropdownMenuItem>
                             <DropdownMenuItem 
-                              onClick={() => {
+                              onSelect={() => {
                                 navigator.clipboard.writeText(JSON.stringify(layout, null, 2));
                               }}
                             >
@@ -323,7 +323,7 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
-                              onClick={() => handleDeleteLayout(layout.id)}
+                              onSelect={() => handleDeleteLayout(layout.id)}
                               className="text-destructive focus:text-destructive"
                             >
                               <Trash2 className="w-4 h-4 mr-2" />

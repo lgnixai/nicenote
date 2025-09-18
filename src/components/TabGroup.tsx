@@ -210,13 +210,13 @@ const TabGroup: React.FC<TabGroupProps> = ({
             <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-dropdown">
               <DropdownMenuItem 
                 className="text-sm hover:bg-secondary cursor-pointer"
-                onClick={() => setIsRenaming(true)}
+                onSelect={() => setIsRenaming(true)}
               >
                 重命名组
               </DropdownMenuItem>
               <DropdownMenuItem 
                 className="text-sm hover:bg-secondary cursor-pointer"
-                onClick={() => setShowColorPicker(!showColorPicker)}
+                onSelect={() => setShowColorPicker(!showColorPicker)}
               >
                 <Palette className="w-4 h-4 mr-2" />
                 更改颜色
@@ -224,7 +224,7 @@ const TabGroup: React.FC<TabGroupProps> = ({
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 className="text-sm hover:bg-secondary cursor-pointer"
-                onClick={handleToggleLock}
+                onSelect={handleToggleLock}
               >
                 {group.isLocked ? (
                   <>
@@ -241,13 +241,13 @@ const TabGroup: React.FC<TabGroupProps> = ({
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 className="text-sm hover:bg-secondary cursor-pointer"
-                onClick={handleCloseAllTabs}
+                onSelect={handleCloseAllTabs}
               >
                 关闭所有标签页
               </DropdownMenuItem>
               <DropdownMenuItem 
                 className="text-sm hover:bg-secondary cursor-pointer text-destructive"
-                onClick={handleDeleteGroup}
+                onSelect={handleDeleteGroup}
               >
                 删除组
               </DropdownMenuItem>
