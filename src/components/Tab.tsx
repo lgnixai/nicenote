@@ -57,6 +57,7 @@ interface TabProps {
   onRename: (id: string, newTitle: string) => void;
   onCopyPath?: (id: string) => void;
   onRevealInExplorer?: (id: string) => void;
+  dragListeners?: any;
 }
 
 const Tab: React.FC<TabProps> = ({ 
@@ -71,7 +72,8 @@ const Tab: React.FC<TabProps> = ({
   onDuplicate,
   onRename,
   onCopyPath,
-  onRevealInExplorer
+  onRevealInExplorer,
+  dragListeners
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -146,6 +148,7 @@ const Tab: React.FC<TabProps> = ({
       <div 
         className="flex-1 flex items-center px-3 cursor-pointer min-w-0"
         onClick={() => onActivate(tab.id)}
+        {...(dragListeners || {})}
       >
         {tab.isLocked && (
           <svg className="w-3 h-3 mr-1.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -438,7 +441,7 @@ const TabBar: React.FC<TabBarProps> = ({
       transition
     } as React.CSSProperties;
     return (
-      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <div ref={setNodeRef} style={style} {...attributes}>
         <Tab
           key={tab.id}
           tab={tab}
@@ -453,6 +456,7 @@ const TabBar: React.FC<TabBarProps> = ({
           onRename={onRename}
           onCopyPath={onCopyPath}
           onRevealInExplorer={onRevealInExplorer}
+          dragListeners={listeners}
         />
       </div>
     );

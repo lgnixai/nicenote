@@ -53,8 +53,7 @@ const TabGroupItem: React.FC<{ tab: Tab; groupId: string; onTabClick: (tabId: st
     <div 
       ref={setNodeRef} 
       style={style} 
-      {...attributes} 
-      {...listeners}
+      {...attributes}
       className={cn(
         "group relative flex items-center min-w-0 max-w-[200px] h-8",
         "border-r border-tab-border",
@@ -66,6 +65,7 @@ const TabGroupItem: React.FC<{ tab: Tab; groupId: string; onTabClick: (tabId: st
       <div 
         className="flex-1 flex items-center px-3 cursor-pointer min-w-0"
         onClick={() => onTabClick(tab.id)}
+        {...listeners}
       >
         {tab.isLocked && (
           <Lock className="w-3 h-3 mr-1.5 text-muted-foreground" />
