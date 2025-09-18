@@ -1,7 +1,14 @@
-import React, { useMemo, useState } from 'react';
-import { X, ChevronDown, MoreHorizontal, ArrowLeft, ArrowRight, Search, Layers, Settings } from 'lucide-react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { X, ChevronDown, MoreHorizontal, ArrowLeft, ArrowRight, Search, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { 
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@/components/ui/context-menu';
 import { useDocuments } from '@/store/documents';
 import { useTabManager } from '@/store/tabManager';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -81,6 +88,15 @@ const Tab: React.FC<TabProps> = ({
   const { getDocument } = useDocuments();
   const doc = useMemo(() => getDocument(tab.documentId), [getDocument, tab.documentId]);
   const [newTitle, setNewTitle] = useState(doc?.name ?? tab.title);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming) {
+      // Focus and select text when entering rename mode
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [isRenaming]);
 
   const handleDropdownClick = (action: string) => {
     setIsDropdownOpen(false);
@@ -125,10 +141,17 @@ const Tab: React.FC<TabProps> = ({
     }
   };
 
+  const commitRename = () => {
+    const title = newTitle.trim();
+    if (title && title !== (doc?.name ?? tab.title)) {
+      onRename(tab.id, title);
+    }
+    setIsRenaming(false);
+  };
+
   const handleRenameSubmit = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      onRename(tab.id, newTitle);
-      setIsRenaming(false);
+      commitRename();
     } else if (e.key === 'Escape') {
       setIsRenaming(false);
       setNewTitle(doc?.name ?? tab.title);
@@ -136,19 +159,28 @@ const Tab: React.FC<TabProps> = ({
   };
 
   return (
-    <div
-      className={cn(
-        "group relative flex items-center min-w-0 max-w-[200px] h-8",
-        "border-r border-tab-border",
-        tab.isActive 
-          ? "bg-tab-active" 
-          : "bg-tab-inactive hover:bg-tab-hover"
-      )}
-    >
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          className={cn(
+            "group relative flex items-center min-w-[96px] max-w-[200px] h-8 flex-[0_1_160px]",
+            "border-r border-tab-border",
+            tab.isActive 
+              ? "bg-tab-active" 
+              : "bg-tab-inactive hover:bg-tab-hover"
+          )}
+        >
       {/* Tab content (drag handle area) */}
       <div 
         className="flex-1 flex items-center px-3 cursor-pointer min-w-0"
-        onClick={() => onActivate(tab.id)}
+        onClick={(e) => {
+          if (isRenaming) return; // do not change active while renaming
+          onActivate(tab.id);
+        }}
+        onMouseDown={(e) => {
+          // Prevent accidental drag/select while renaming
+          if (isRenaming) e.stopPropagation();
+        }}
         {...dragHandleProps}
       >
         {tab.isLocked && (
@@ -163,12 +195,19 @@ const Tab: React.FC<TabProps> = ({
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={handleRenameSubmit}
-            onBlur={() => setIsRenaming(false)}
+            onBlur={commitRename}
             className="flex-1 text-sm bg-transparent border-none outline-none text-foreground"
-            autoFocus
+            ref={inputRef}
           />
         ) : (
-          <span className="text-sm text-foreground truncate">
+          <span 
+            className="text-sm text-foreground truncate"
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setNewTitle(doc?.name ?? tab.title);
+              setIsRenaming(true);
+            }}
+          >
             {doc?.name ?? tab.title}
           </span>
         )}
@@ -177,97 +216,57 @@ const Tab: React.FC<TabProps> = ({
           <div className="ml-2 w-1.5 h-1.5 bg-primary rounded-full" />
         )}
       </div>
+      </div>
 
-      {/* Tab dropdown */}
-      <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-        <DropdownMenuTrigger asChild>
-          <button 
-            className={cn(
-              "flex items-center justify-center w-5 h-5 mr-1",
-              "opacity-0 group-hover:opacity-100 hover:bg-nav-hover rounded",
-              "transition-opacity duration-150"
-            )}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ChevronDown className="w-3 h-3 text-muted-foreground" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent 
-          align="start" 
-          className="w-48 bg-card border border-border shadow-dropdown z-50"
+      {/* Context menu on right click */}
+      </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48 bg-card border border-border shadow-dropdown z-50">
+        <ContextMenuItem
+          className={cn(
+            "text-sm hover:bg-secondary cursor-pointer",
+            tab.isLocked && "opacity-50 cursor-not-allowed"
+          )}
+          onClick={() => handleDropdownClick('close')}
+          disabled={tab.isLocked}
         >
-          <DropdownMenuItem 
-            className={cn(
-              "text-sm hover:bg-secondary cursor-pointer",
-              tab.isLocked && "opacity-50 cursor-not-allowed"
-            )}
-            onClick={() => handleDropdownClick('close')}
-            disabled={tab.isLocked}
-          >
-            关闭 {tab.isLocked && '(已锁定)'}
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('closeOthers')}
-          >
-            关闭其他标签页
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('closeAll')}
-          >
-            全部关闭
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('duplicate')}
-          >
-            复制标签页
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('rename')}
-          >
-            重命名
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('toggleLock')}
-          >
-            {tab.isLocked ? '解锁' : '锁定'}
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('copyPath')}
-          >
-            复制文件路径
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('revealInExplorer')}
-          >
-            在资源管理器中显示
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('splitHorizontal')}
-          >
-            左右分屏
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
-            onClick={() => handleDropdownClick('splitVertical')}
-          >
-            上下分屏
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          关闭 {tab.isLocked && '(已锁定)'}
+        </ContextMenuItem>
+        <ContextMenuItem className="text-sm hover:bg-secondary cursor-pointer" onClick={() => handleDropdownClick('closeOthers')}>
+          关闭其他标签页
+        </ContextMenuItem>
+        <ContextMenuItem className="text-sm hover:bg-secondary cursor-pointer" onClick={() => handleDropdownClick('closeAll')}>
+          全部关闭
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem className="text-sm hover:bg-secondary cursor-pointer" onClick={() => handleDropdownClick('duplicate')}>
+          复制标签页
+        </ContextMenuItem>
+        <ContextMenuItem className="text-sm hover:bg-secondary cursor-pointer" onClick={() => handleDropdownClick('rename')}>
+          重命名
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem className="text-sm hover:bg-secondary cursor-pointer" onClick={() => handleDropdownClick('toggleLock')}>
+          {tab.isLocked ? '解锁' : '锁定'}
+        </ContextMenuItem>
+        <ContextMenuItem className="text-sm hover:bg-secondary cursor-pointer" onClick={() => handleDropdownClick('copyPath')}>
+          复制文件路径
+        </ContextMenuItem>
+        <ContextMenuItem className="text-sm hover:bg-secondary cursor-pointer" onClick={() => handleDropdownClick('revealInExplorer')}>
+          在资源管理器中显示
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem className="text-sm hover:bg-secondary cursor-pointer" onClick={() => handleDropdownClick('splitHorizontal')}>
+          左右分屏
+        </ContextMenuItem>
+        <ContextMenuItem className="text-sm hover:bg-secondary cursor-pointer" onClick={() => handleDropdownClick('splitVertical')}>
+          上下分屏
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
 
-      {/* Close button */}
-      <button
+    {/* Close button */}
+    <button
         className={cn(
           "flex items-center justify-center w-5 h-5 mr-1",
           "opacity-0 group-hover:opacity-100 hover:bg-nav-hover rounded",
@@ -280,7 +279,7 @@ const Tab: React.FC<TabProps> = ({
       >
         <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
       </button>
-    </div>
+    </ContextMenu>
   );
 };
 
@@ -499,7 +498,7 @@ const TabBar: React.FC<TabBarProps> = ({
         </div>
 
         {/* Stacked tabs */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-x-auto items-center">
           <StackedTab
             tabs={stackTabs}
             activeTabIndex={existingStack.activeTabIndex}
@@ -519,6 +518,16 @@ const TabBar: React.FC<TabBarProps> = ({
               }
             }}
           />
+          {/* New Tab after last item */}
+          <button 
+            onClick={onAddTab}
+            className="p-1 hover:bg-nav-hover rounded ml-1 flex-none"
+            title="新建标签页 (Ctrl+T)"
+          >
+            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
         </div>
 
         {/* Controls */}
@@ -529,16 +538,6 @@ const TabBar: React.FC<TabBarProps> = ({
             title="搜索标签页 (Ctrl+P)"
           >
             <Search className="w-4 h-4 text-muted-foreground" />
-          </button>
-
-          <button 
-            onClick={onAddTab}
-            className="p-1 hover:bg-nav-hover rounded"
-            title="新建标签页 (Ctrl+T)"
-          >
-            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
           </button>
 
           <DropdownMenu>
@@ -590,7 +589,7 @@ const TabBar: React.FC<TabBarProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-x-auto whitespace-nowrap">
         {/* Configure sensors to require slight movement before starting drag */}
         <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
           <SortableContext items={tabs.map(t => t.id)} strategy={horizontalListSortingStrategy}>
@@ -598,6 +597,16 @@ const TabBar: React.FC<TabBarProps> = ({
               <SortableTab key={tab.id} tab={tab} />
             ))}
           </SortableContext>
+          {/* New Tab button follows the last tab */}
+          <button 
+            onClick={onAddTab}
+            className="p-1 hover:bg-nav-hover rounded ml-1 flex-none"
+            title="新建标签页 (Ctrl+T)"
+          >
+            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
         </DndContext>
       </div>
 
@@ -609,16 +618,6 @@ const TabBar: React.FC<TabBarProps> = ({
           title="搜索标签页 (Ctrl+P)"
         >
           <Search className="w-4 h-4 text-muted-foreground" />
-        </button>
-
-        <button 
-          onClick={onAddTab}
-          className="p-1 hover:bg-nav-hover rounded"
-          title="新建标签页 (Ctrl+T)"
-        >
-          <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
         </button>
 
         {/* More options */}
