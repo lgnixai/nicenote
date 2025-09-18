@@ -4,10 +4,11 @@ import { TabBar, type TabType } from './Tab';
 import Editor from './Editor';
 import LinkedViews from './LinkedViews';
 import WorkspaceManager from './WorkspaceManager';
+import GlobalSidebar from './GlobalSidebar';
 import { useDocuments } from '@/store/documents';
 import { useTabManager } from '@/store/tabManager';
 import { cn } from '@/lib/utils';
-import { FolderPlus, FilePlus, FileText, MoreHorizontal, Layout, Save } from 'lucide-react';
+import { Layout, Save } from 'lucide-react';
 import { useFileTree } from '@/store/filetree';
 import useShortcuts from '@/hooks/useShortcuts';
 
@@ -73,7 +74,52 @@ const ObsidianLayout: React.FC = () => {
     ]
   });
 
-  const { rootId, listChildren, createFile, createFolder, nodesById } = useFileTree();
+  const { nodesById } = useFileTree();
+
+  // Handle opening files from global sidebar
+  const handleOpenFileFromSidebar = useCallback((fileId: string, fileName: string, documentId: string) => {
+    // Find the first available leaf panel or use the first one
+    const findFirstLeafPanel = (node: PanelNode): string | null => {
+      if (node.type === 'leaf' && node.tabs) return node.id;
+      if (node.children) {
+        for (const child of node.children) {
+          const result = findFirstLeafPanel(child);
+          if (result) return result;
+        }
+      }
+      return null;
+    };
+
+    const targetPanelId = findFirstLeafPanel(panelTree);
+    if (!targetPanelId) return;
+
+    const panel = findPanelById(panelTree, targetPanelId);
+    if (!panel?.tabs) return;
+
+    // Check if file is already open in any tab
+    const existingTab = panel.tabs.find(tab => tab.documentId === documentId);
+    if (existingTab) {
+      // Just activate the existing tab
+      const newTabs = panel.tabs.map(tab => ({ ...tab, isActive: tab.id === existingTab.id }));
+      updatePanelTabs(targetPanelId, newTabs);
+      pushHistory(targetPanelId, existingTab.id);
+      return;
+    }
+
+    // Create new tab for the file
+    const newTab: TabType = {
+      id: Date.now().toString(),
+      title: fileName,
+      isActive: true,
+      documentId: documentId,
+      filePath: fileName
+    };
+
+    const newTabs = panel.tabs.map(tab => ({ ...tab, isActive: false }));
+    newTabs.push(newTab);
+    updatePanelTabs(targetPanelId, newTabs);
+    pushHistory(targetPanelId, newTab.id);
+  }, [panelTree, findPanelById, updatePanelTabs, pushHistory]);
 
   // Workspace management handlers
   const handleLoadWorkspaceLayout = useCallback((layout: any) => {
@@ -405,68 +451,6 @@ const ObsidianLayout: React.FC = () => {
             panelId={node.id}
           />
           <div className="flex flex-1 min-h-0">
-            {/* 文件树侧边栏 */}
-            <div className="w-56 border-r border-border bg-panel p-2 space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs text-muted-foreground">文件</span>
-                <button className={cn('p-1 hover:bg-nav-hover rounded')}>
-                  <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                </button>
-              </div>
-              <div className="flex gap-1 px-1">
-                <button className={cn('px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded flex items-center gap-1')} onClick={() => createFolder(rootId)}>
-                  <FolderPlus className="w-3.5 h-3.5" /> 新建文件夹
-                </button>
-                <button className={cn('px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded flex items-center gap-1')} onClick={() => {
-                  const docId = createDocument('未命名.md', { language: 'markdown', content: '' });
-                  createFile(rootId, '未命名.md', docId);
-                }}>
-                  <FilePlus className="w-3.5 h-3.5" /> 新建文件
-                </button>
-              </div>
-              <div className="space-y-1">
-                {listChildren(rootId).length === 0 && (
-                  <div className="text-xs text-muted-foreground px-1">暂无文件</div>
-                )}
-                {listChildren(rootId).map(node => (
-                  <div
-                    key={node.id}
-                    className="flex items-center gap-2 px-1 py-1 rounded hover:bg-nav-hover cursor-pointer"
-                    onDoubleClick={() => {
-                      if (node.type === 'file' && node.documentId) {
-                        // 在当前面板（node.id 仅用于文件树节点，这里选择第一个叶子面板）打开
-                        const openInFirstLeaf = (tree: PanelNode): string | null => {
-                          if (tree.type === 'leaf' && tree.tabs) return tree.id;
-                          if (tree.children) {
-                            for (const c of tree.children) {
-                              const id = openInFirstLeaf(c);
-                              if (id) return id;
-                            }
-                          }
-                          return null;
-                        };
-                        const targetPanelId = openInFirstLeaf(panelTree) ?? 'left';
-                        const panel = findPanelById(panelTree, targetPanelId);
-                        if (!panel?.tabs) return;
-                        const newTab: TabType = {
-                          id: Date.now().toString(),
-                          title: nodesById[node.id].name,
-                          isActive: true,
-                          documentId: node.documentId,
-                          filePath: nodesById[node.id].name
-                        };
-                        const newTabs = panel.tabs.map(t => ({ ...t, isActive: false }));
-                        newTabs.push(newTab);
-                        updatePanelTabs(targetPanelId, newTabs);
-                      }
-                    }}
-                  >
-                    <FileText className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-foreground truncate">{node.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
             {/* 编辑器区域 */}
             <div className="flex flex-1 min-w-0">
               <div className="flex-1">
@@ -525,7 +509,8 @@ const ObsidianLayout: React.FC = () => {
     handleDuplicate,
     handleRename,
     handleCopyPath,
-    handleRevealInExplorer
+    handleRevealInExplorer,
+    updatePanelTabs
   ]);
 
   return (
@@ -555,9 +540,15 @@ const ObsidianLayout: React.FC = () => {
         </div>
       </div>
       
-      {/* Main content */}
-      <div className="flex-1">
-        {renderPanelNode(panelTree)}
+      {/* Main content with global sidebar */}
+      <div className="flex flex-1 min-h-0">
+        {/* Global Sidebar */}
+        <GlobalSidebar onOpenFile={handleOpenFileFromSidebar} />
+        
+        {/* Editor panels */}
+        <div className="flex-1 min-w-0">
+          {renderPanelNode(panelTree)}
+        </div>
       </div>
       
       {/* Workspace Manager */}
