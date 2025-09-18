@@ -81,38 +81,44 @@ const Tab: React.FC<TabProps> = ({
 
   const handleDropdownClick = (action: string) => {
     setIsDropdownOpen(false);
-    switch (action) {
-      case 'close':
-        if (!tab.isLocked) onClose(tab.id);
-        break;
-      case 'closeOthers':
-        onCloseOthers(tab.id);
-        break;
-      case 'closeAll':
-        onCloseAll();
-        break;
-      case 'splitHorizontal':
-        onSplitHorizontal(tab.id);
-        break;
-      case 'splitVertical':
-        onSplitVertical(tab.id);
-        break;
-      case 'toggleLock':
-        onToggleLock(tab.id);
-        break;
-      case 'duplicate':
-        onDuplicate(tab.id);
-        break;
-      case 'rename':
-        setIsRenaming(true);
-        setNewTitle(tab.title);
-        break;
-      case 'copyPath':
-        if (onCopyPath) onCopyPath(tab.id);
-        break;
-      case 'revealInExplorer':
-        if (onRevealInExplorer) onRevealInExplorer(tab.id);
-        break;
+    try {
+      switch (action) {
+        case 'close':
+          if (!tab.isLocked) onClose(tab.id);
+          break;
+        case 'closeOthers':
+          onCloseOthers(tab.id);
+          break;
+        case 'closeAll':
+          onCloseAll();
+          break;
+        case 'splitHorizontal':
+          onSplitHorizontal(tab.id);
+          break;
+        case 'splitVertical':
+          onSplitVertical(tab.id);
+          break;
+        case 'toggleLock':
+          onToggleLock(tab.id);
+          break;
+        case 'duplicate':
+          onDuplicate(tab.id);
+          break;
+        case 'rename':
+          setIsRenaming(true);
+          setNewTitle(doc?.name ?? tab.title);
+          break;
+        case 'copyPath':
+          if (onCopyPath) onCopyPath(tab.id);
+          break;
+        case 'revealInExplorer':
+          if (onRevealInExplorer) onRevealInExplorer(tab.id);
+          break;
+        default:
+          console.warn('未知的下拉菜单操作:', action);
+      }
+    } catch (error) {
+      console.error('执行下拉菜单操作时出错:', error);
     }
   };
 
@@ -187,11 +193,14 @@ const Tab: React.FC<TabProps> = ({
           className="w-48 bg-card border border-border shadow-dropdown z-50"
         >
           <DropdownMenuItem 
-            className="text-sm hover:bg-secondary cursor-pointer"
+            className={cn(
+              "text-sm hover:bg-secondary cursor-pointer",
+              tab.isLocked && "opacity-50 cursor-not-allowed"
+            )}
             onClick={() => handleDropdownClick('close')}
             disabled={tab.isLocked}
           >
-            关闭
+            关闭 {tab.isLocked && '(已锁定)'}
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
@@ -228,7 +237,6 @@ const Tab: React.FC<TabProps> = ({
           <DropdownMenuItem 
             className="text-sm hover:bg-secondary cursor-pointer"
             onClick={() => handleDropdownClick('copyPath')}
-            disabled={!tab.filePath}
           >
             复制文件路径
           </DropdownMenuItem>
