@@ -2,6 +2,117 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+    
+    /* Custom tab colors */
+    --tab-active: 0 0% 100%;
+    --tab-inactive: 210 40% 96%;
+    --tab-hover: 210 40% 94%;
+    --tab-border: 214.3 31.8% 91.4%;
+    --panel: 210 40% 98%;
+    --nav-hover: 210 40% 94%;
+    --shadow-dropdown: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    
+    /* Custom tab colors for dark mode */
+    --tab-active: 222.2 84% 4.9%;
+    --tab-inactive: 217.2 32.6% 17.5%;
+    --tab-hover: 217.2 32.6% 20%;
+    --tab-border: 217.2 32.6% 17.5%;
+    --panel: 217.2 32.6% 15%;
+    --nav-hover: 217.2 32.6% 20%;
+    --shadow-dropdown: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .bg-tab-active {
+    background-color: hsl(var(--tab-active));
+  }
+  .bg-tab-inactive {
+    background-color: hsl(var(--tab-inactive));
+  }
+  .bg-tab-hover {
+    background-color: hsl(var(--tab-hover));
+  }
+  .border-tab-border {
+    border-color: hsl(var(--tab-border));
+  }
+  .bg-panel {
+    background-color: hsl(var(--panel));
+  }
+  .bg-nav-hover {
+    background-color: hsl(var(--nav-hover));
+  }
+  .shadow-dropdown {
+    box-shadow: var(--shadow-dropdown);
+  }
+  
+  /* Line clamp utilities */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  /* Search result highlighting */
+  mark {
+    @apply bg-primary/20 text-primary px-0.5 rounded;
+  }
+}
+
 /* Obsidian-inspired design system. All colors MUST be HSL. */
 
 @layer base {
