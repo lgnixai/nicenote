@@ -74,6 +74,7 @@ const ObsidianLayout: React.FC = () => {
   });
 
   const { rootId, listChildren, createFile, createFolder, nodesById } = useFileTree();
+  const [lastActivePanelId, setLastActivePanelId] = useState<string>('left');
 
   // Workspace management handlers
   const handleLoadWorkspaceLayout = useCallback((layout: any) => {
@@ -220,6 +221,48 @@ const ObsidianLayout: React.FC = () => {
     }
   }, [panelTree, findPanelById]);
 
+  const findFirstLeafPanelId = useCallback((tree: PanelNode): string | null => {
+    if (tree.type === 'leaf' && tree.tabs) return tree.id;
+    if (tree.children) {
+      for (const child of tree.children) {
+        const result = findFirstLeafPanelId(child);
+        if (result) return result;
+      }
+    }
+    return null;
+  }, []);
+
+  const openDocumentInTargetPanel = useCallback((docId: string, title: string, filePath?: string) => {
+    setPanelTree(prev => {
+      const getTargetPanelId = (): string => {
+        const p = findPanelById(prev, lastActivePanelId);
+        if (p && p.type === 'leaf' && p.tabs) return lastActivePanelId;
+        return findFirstLeafPanelId(prev) ?? 'left';
+      };
+      const targetId = getTargetPanelId();
+      const targetPanel = findPanelById(prev, targetId);
+      if (!targetPanel || targetPanel.type !== 'leaf' || !targetPanel.tabs) return prev;
+      const newTab: TabType = {
+        id: Date.now().toString(),
+        title,
+        isActive: true,
+        documentId: docId,
+        filePath
+      };
+      const newTabs = targetPanel.tabs.map(t => ({ ...t, isActive: false }));
+      newTabs.push(newTab);
+      const updateNode = (node: PanelNode): PanelNode => {
+        if (node.id === targetId && node.type === 'leaf') {
+          return { ...node, tabs: newTabs };
+        }
+        if (node.children) return { ...node, children: node.children.map(updateNode) };
+        return node;
+      };
+      setLastActivePanelId(targetId);
+      return updateNode(prev);
+    });
+  }, [findPanelById, findFirstLeafPanelId, lastActivePanelId]);
+
   const handleRevealInExplorer = useCallback((panelId: string) => (id: string) => {
     // 在网页环境中，我们可以显示文件路径或其他相关信息
     const panel = findPanelById(panelTree, panelId);
@@ -341,6 +384,7 @@ const ObsidianLayout: React.FC = () => {
     const newTabs = panel.tabs.map(tab => ({ ...tab, isActive: tab.id === id }));
     updatePanelTabs(panelId, newTabs);
     pushHistory(panelId, id);
+    setLastActivePanelId(panelId);
   }, [panelTree, findPanelById, updatePanelTabs]);
 
   const handleAddTab = useCallback((panelId: string) => () => {
@@ -405,75 +449,10 @@ const ObsidianLayout: React.FC = () => {
             panelId={node.id}
           />
           <div className="flex flex-1 min-h-0">
-            {/* 文件树侧边栏 */}
-            <div className="w-56 border-r border-border bg-panel p-2 space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs text-muted-foreground">文件</span>
-                <button className={cn('p-1 hover:bg-nav-hover rounded')}>
-                  <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                </button>
-              </div>
-              <div className="flex gap-1 px-1">
-                <button className={cn('px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded flex items-center gap-1')} onClick={() => createFolder(rootId)}>
-                  <FolderPlus className="w-3.5 h-3.5" /> 新建文件夹
-                </button>
-                <button className={cn('px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded flex items-center gap-1')} onClick={() => {
-                  const docId = createDocument('未命名.md', { language: 'markdown', content: '' });
-                  createFile(rootId, '未命名.md', docId);
-                }}>
-                  <FilePlus className="w-3.5 h-3.5" /> 新建文件
-                </button>
-              </div>
-              <div className="space-y-1">
-                {listChildren(rootId).length === 0 && (
-                  <div className="text-xs text-muted-foreground px-1">暂无文件</div>
-                )}
-                {listChildren(rootId).map(node => (
-                  <div
-                    key={node.id}
-                    className="flex items-center gap-2 px-1 py-1 rounded hover:bg-nav-hover cursor-pointer"
-                    onDoubleClick={() => {
-                      if (node.type === 'file' && node.documentId) {
-                        // 在当前面板（node.id 仅用于文件树节点，这里选择第一个叶子面板）打开
-                        const openInFirstLeaf = (tree: PanelNode): string | null => {
-                          if (tree.type === 'leaf' && tree.tabs) return tree.id;
-                          if (tree.children) {
-                            for (const c of tree.children) {
-                              const id = openInFirstLeaf(c);
-                              if (id) return id;
-                            }
-                          }
-                          return null;
-                        };
-                        const targetPanelId = openInFirstLeaf(panelTree) ?? 'left';
-                        const panel = findPanelById(panelTree, targetPanelId);
-                        if (!panel?.tabs) return;
-                        const newTab: TabType = {
-                          id: Date.now().toString(),
-                          title: nodesById[node.id].name,
-                          isActive: true,
-                          documentId: node.documentId,
-                          filePath: nodesById[node.id].name
-                        };
-                        const newTabs = panel.tabs.map(t => ({ ...t, isActive: false }));
-                        newTabs.push(newTab);
-                        updatePanelTabs(targetPanelId, newTabs);
-                      }
-                    }}
-                  >
-                    <FileText className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-foreground truncate">{node.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* 编辑器区域 */}
             <div className="flex flex-1 min-w-0">
               <div className="flex-1">
                 <Editor documentId={node.tabs.find(t => t.isActive)?.documentId} />
               </div>
-              
-              {/* 关联视图 */}
               <LinkedViews
                 activeTab={node.tabs.find(t => t.isActive)}
                 panelId={node.id}
@@ -556,8 +535,49 @@ const ObsidianLayout: React.FC = () => {
       </div>
       
       {/* Main content */}
-      <div className="flex-1">
-        {renderPanelNode(panelTree)}
+      <div className="flex-1 flex min-h-0">
+        {/* Global Sidebar */}
+        <div className="w-56 border-r border-border bg-panel p-2 space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs text-muted-foreground">文件</span>
+            <button className={cn('p-1 hover:bg-nav-hover rounded')}>
+              <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+          <div className="flex gap-1 px-1">
+            <button className={cn('px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded flex items-center gap-1')} onClick={() => createFolder(rootId)}>
+              <FolderPlus className="w-3.5 h-3.5" /> 新建文件夹
+            </button>
+            <button className={cn('px-2 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded flex items-center gap-1')} onClick={() => {
+              const docId = createDocument('未命名.md', { language: 'markdown', content: '' });
+              createFile(rootId, '未命名.md', docId);
+            }}>
+              <FilePlus className="w-3.5 h-3.5" /> 新建文件
+            </button>
+          </div>
+          <div className="space-y-1">
+            {listChildren(rootId).length === 0 && (
+              <div className="text-xs text-muted-foreground px-1">暂无文件</div>
+            )}
+            {listChildren(rootId).map(node => (
+              <div
+                key={node.id}
+                className="flex items-center gap-2 px-1 py-1 rounded hover:bg-nav-hover cursor-pointer"
+                onDoubleClick={() => {
+                  if (node.type === 'file' && node.documentId) {
+                    openDocumentInTargetPanel(node.documentId, nodesById[node.id].name, nodesById[node.id].name);
+                  }
+                }}
+              >
+                <FileText className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-foreground truncate">{node.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          {renderPanelNode(panelTree)}
+        </div>
       </div>
       
       {/* Workspace Manager */}
