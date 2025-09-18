@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useDocuments } from '@/store/documents';
 import { useTabManager } from '@/store/tabManager';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
+import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import StackedTab from './StackedTab';
@@ -57,6 +58,10 @@ interface TabProps {
   onRename: (id: string, newTitle: string) => void;
   onCopyPath?: (id: string) => void;
   onRevealInExplorer?: (id: string) => void;
+  // dnd-kit drag handle props (optional)
+  dragHandleAttributes?: DraggableAttributes;
+  dragHandleListeners?: DraggableSyntheticListeners;
+  setDragHandleRef?: (element: HTMLElement | null) => void;
 }
 
 const Tab: React.FC<TabProps> = ({ 
@@ -71,7 +76,10 @@ const Tab: React.FC<TabProps> = ({
   onDuplicate,
   onRename,
   onCopyPath,
-  onRevealInExplorer
+  onRevealInExplorer,
+  dragHandleAttributes,
+  dragHandleListeners,
+  setDragHandleRef
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -146,6 +154,9 @@ const Tab: React.FC<TabProps> = ({
       <div 
         className="flex-1 flex items-center px-3 cursor-pointer min-w-0"
         onClick={() => onActivate(tab.id)}
+        ref={setDragHandleRef}
+        {...dragHandleAttributes}
+        {...dragHandleListeners}
       >
         {tab.isLocked && (
           <svg className="w-3 h-3 mr-1.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -432,13 +443,13 @@ const TabBar: React.FC<TabBarProps> = ({
   });
   // 排序容器内的单个可排序 Tab
   const SortableTab: React.FC<{ tab: Tab }> = ({ tab }) => {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tab.id, disabled: tab.isLocked });
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition } = useSortable({ id: tab.id, disabled: tab.isLocked });
     const style = {
       transform: CSS.Transform.toString(transform),
       transition
     } as React.CSSProperties;
     return (
-      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <div ref={setNodeRef} style={style}>
         <Tab
           key={tab.id}
           tab={tab}
@@ -453,6 +464,9 @@ const TabBar: React.FC<TabBarProps> = ({
           onRename={onRename}
           onCopyPath={onCopyPath}
           onRevealInExplorer={onRevealInExplorer}
+          dragHandleAttributes={attributes}
+          dragHandleListeners={listeners}
+          setDragHandleRef={setActivatorNodeRef}
         />
       </div>
     );
