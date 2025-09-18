@@ -185,16 +185,22 @@ const ObsidianLayout: React.FC = () => {
 
     const targetTab = panel.tabs.find(tab => tab.id === id);
     if (targetTab) {
+      // 如果有documentId，创建新文档副本
+      const newDocumentId = targetTab.documentId 
+        ? createDocument(`${targetTab.title} - 副本`, { content: '', language: 'markdown' })
+        : undefined;
+      
       const newTab = {
         ...targetTab,
         id: Date.now().toString(),
         title: `${targetTab.title} - 副本`,
-        isActive: false
+        isActive: false,
+        documentId: newDocumentId
       };
       const newTabs = [...panel.tabs, newTab];
       updatePanelTabs(panelId, newTabs);
     }
-  }, [panelTree, findPanelById, updatePanelTabs]);
+  }, [panelTree, findPanelById, updatePanelTabs, createDocument]);
 
   const handleRename = useCallback((panelId: string) => (id: string, newTitle: string) => {
     const panel = findPanelById(panelTree, panelId);
@@ -215,8 +221,16 @@ const ObsidianLayout: React.FC = () => {
     if (!panel?.tabs) return;
 
     const targetTab = panel.tabs.find(tab => tab.id === id);
-    if (targetTab?.filePath) {
-      navigator.clipboard.writeText(targetTab.filePath);
+    if (targetTab) {
+      const pathToCopy = targetTab.filePath || `/${targetTab.title}`;
+      navigator.clipboard.writeText(pathToCopy).then(() => {
+        // 可以添加一个toast通知
+        console.log('路径已复制到剪贴板:', pathToCopy);
+      }).catch(err => {
+        console.error('复制路径失败:', err);
+        // 降级方案：显示路径
+        alert(`文件路径: ${pathToCopy}`);
+      });
     }
   }, [panelTree, findPanelById]);
 
@@ -269,7 +283,15 @@ const ObsidianLayout: React.FC = () => {
 
     const targetTab = panel.tabs.find(tab => tab.id === id);
     if (targetTab) {
-      alert(`文件位置: ${targetTab.filePath || '新文件'}`);
+      const filePath = targetTab.filePath || `/${targetTab.title}`;
+      // 在Web环境中，我们可以尝试打开文件管理器或显示信息
+      if (targetTab.filePath) {
+        // 如果有真实文件路径，尝试在新标签页中打开
+        window.open(`file://${targetTab.filePath}`, '_blank');
+      } else {
+        // 否则显示文件信息
+        alert(`文件信息:\n标题: ${targetTab.title}\n位置: ${filePath}\n类型: ${targetTab.documentId ? '文档' : '新文件'}`);
+      }
     }
   }, [panelTree, findPanelById]);
 

@@ -228,9 +228,10 @@ const TabSearch: React.FC<TabSearchProps> = ({
         return '最近使用';
       case 'path':
         return result.tab.filePath || '';
-      case 'group':
+      case 'group': {
         const group = result.tab.groupId ? tabGroups[result.tab.groupId] : null;
         return group ? `组: ${group.name}` : '';
+      }
       default:
         return result.tab.filePath || '';
     }
