@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TabBar, type TabType } from './Tab';
 import Editor from './Editor';
-import LinkedViews from './LinkedViews';
 import WorkspaceManager from './WorkspaceManager';
 import { useDocuments } from '@/store/documents';
 import { useTabManager } from '@/store/tabManager';
@@ -453,12 +452,6 @@ const ObsidianLayout: React.FC = () => {
               <div className="flex-1">
                 <Editor documentId={node.tabs.find(t => t.isActive)?.documentId} />
               </div>
-              <LinkedViews
-                activeTab={node.tabs.find(t => t.isActive)}
-                panelId={node.id}
-                position="right"
-                className="w-64"
-              />
             </div>
           </div>
         </div>
