@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { X, ChevronDown, MoreHorizontal, ArrowLeft, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useDocuments } from '@/store/documents';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
+import { SortableContext, useSortable, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Tab {
   id: string;
@@ -10,6 +14,7 @@ interface Tab {
   isDirty?: boolean;
   isLocked?: boolean;
   filePath?: string;
+  documentId?: string;
 }
 
 interface TabProps {
@@ -43,7 +48,9 @@ const Tab: React.FC<TabProps> = ({
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
-  const [newTitle, setNewTitle] = useState(tab.title);
+  const { getDocument } = useDocuments();
+  const doc = useMemo(() => getDocument(tab.documentId), [getDocument, tab.documentId]);
+  const [newTitle, setNewTitle] = useState(doc?.name ?? tab.title);
 
   const handleDropdownClick = (action: string) => {
     setIsDropdownOpen(false);
@@ -88,7 +95,7 @@ const Tab: React.FC<TabProps> = ({
       setIsRenaming(false);
     } else if (e.key === 'Escape') {
       setIsRenaming(false);
-      setNewTitle(tab.title);
+      setNewTitle(doc?.name ?? tab.title);
     }
   };
 
@@ -125,11 +132,11 @@ const Tab: React.FC<TabProps> = ({
           />
         ) : (
           <span className="text-sm text-foreground truncate">
-            {tab.title}
+            {doc?.name ?? tab.title}
           </span>
         )}
         
-        {tab.isDirty && (
+        {(doc?.isDirty || tab.isDirty) && (
           <div className="ml-2 w-1.5 h-1.5 bg-primary rounded-full" />
         )}
       </div>
@@ -252,6 +259,9 @@ interface TabBarProps {
   onRename: (id: string, newTitle: string) => void;
   onCopyPath?: (id: string) => void;
   onRevealInExplorer?: (id: string) => void;
+  onReorderTabs: (tabs: Tab[]) => void;
+  onBack?: () => void;
+  onForward?: () => void;
 }
 
 const TabBar: React.FC<TabBarProps> = ({ 
@@ -267,39 +277,72 @@ const TabBar: React.FC<TabBarProps> = ({
   onDuplicate,
   onRename,
   onCopyPath,
-  onRevealInExplorer
+  onRevealInExplorer,
+  onReorderTabs,
+  onBack,
+  onForward
 }) => {
+  // 排序容器内的单个可排序 Tab
+  const SortableTab: React.FC<{ tab: Tab }> = ({ tab }) => {
+    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tab.id, disabled: tab.isLocked });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition
+    } as React.CSSProperties;
+    return (
+      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+        <Tab
+          key={tab.id}
+          tab={tab}
+          onClose={onCloseTab}
+          onActivate={onActivateTab}
+          onCloseOthers={onCloseOthers}
+          onCloseAll={onCloseAll}
+          onSplitHorizontal={onSplitHorizontal}
+          onSplitVertical={onSplitVertical}
+          onToggleLock={onToggleLock}
+          onDuplicate={onDuplicate}
+          onRename={onRename}
+          onCopyPath={onCopyPath}
+          onRevealInExplorer={onRevealInExplorer}
+        />
+      </div>
+    );
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = tabs.findIndex(t => t.id === active.id);
+    const newIndex = tabs.findIndex(t => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newOrder = arrayMove(tabs, oldIndex, newIndex).map(t => ({ ...t }));
+    const activeId = tabs.find(t => t.isActive)?.id;
+    newOrder.forEach(t => { t.isActive = t.id === activeId; });
+    onReorderTabs(newOrder);
+  };
+
   return (
     <div className="flex items-center bg-panel border-b border-border">
       {/* Navigation controls */}
       <div className="flex items-center px-2 border-r border-border">
-        <button className="p-1 hover:bg-nav-hover rounded">
+        <button className="p-1 hover:bg-nav-hover rounded" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 text-muted-foreground" />
         </button>
-        <button className="p-1 hover:bg-nav-hover rounded">
+        <button className="p-1 hover:bg-nav-hover rounded" onClick={onForward}>
           <ArrowRight className="w-4 h-4 text-muted-foreground" />
         </button>
       </div>
 
       {/* Tabs */}
       <div className="flex flex-1 overflow-hidden">
-        {tabs.map((tab) => (
-          <Tab
-            key={tab.id}
-            tab={tab}
-            onClose={onCloseTab}
-            onActivate={onActivateTab}
-            onCloseOthers={onCloseOthers}
-            onCloseAll={onCloseAll}
-            onSplitHorizontal={onSplitHorizontal}
-            onSplitVertical={onSplitVertical}
-            onToggleLock={onToggleLock}
-            onDuplicate={onDuplicate}
-            onRename={onRename}
-            onCopyPath={onCopyPath}
-            onRevealInExplorer={onRevealInExplorer}
-          />
-        ))}
+        <DndContext onDragEnd={handleDragEnd}>
+          <SortableContext items={tabs.map(t => t.id)} strategy={horizontalListSortingStrategy}>
+            {tabs.map((tab) => (
+              <SortableTab key={tab.id} tab={tab} />
+            ))}
+          </SortableContext>
+        </DndContext>
       </div>
 
       {/* Add tab button */}
