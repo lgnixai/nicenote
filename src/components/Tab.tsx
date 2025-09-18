@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { X, ChevronDown, MoreHorizontal, ArrowLeft, ArrowRight, Search, Layers, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -59,6 +59,7 @@ interface TabProps {
   onRevealInExplorer?: (id: string) => void;
   // Drag handle props for dnd-kit: apply only to the tab label area
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
+  dynamicWidth?: number;
 }
 
 const Tab: React.FC<TabProps> = ({ 
@@ -74,16 +75,25 @@ const Tab: React.FC<TabProps> = ({
   onRename,
   onCopyPath,
   onRevealInExplorer,
-  dragHandleProps
+  dragHandleProps,
+  dynamicWidth
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const { getDocument } = useDocuments();
   const doc = useMemo(() => getDocument(tab.documentId), [getDocument, tab.documentId]);
   const [newTitle, setNewTitle] = useState(doc?.name ?? tab.title);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
+
+  const handleRightClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    setIsDropdownOpen(true);
+  };
 
   const handleDropdownClick = (action: string) => {
     setIsDropdownOpen(false);
+    setContextMenuPosition(null);
     try {
       switch (action) {
         case 'close':
@@ -127,7 +137,10 @@ const Tab: React.FC<TabProps> = ({
 
   const handleRenameSubmit = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      onRename(tab.id, newTitle);
+      e.preventDefault();
+      if (newTitle.trim() !== (doc?.name ?? tab.title)) {
+        onRename(tab.id, newTitle.trim());
+      }
       setIsRenaming(false);
     } else if (e.key === 'Escape') {
       setIsRenaming(false);
@@ -138,17 +151,22 @@ const Tab: React.FC<TabProps> = ({
   return (
     <div
       className={cn(
-        "group relative flex items-center min-w-0 max-w-[200px] h-8",
+        "group relative flex items-center min-w-0 h-8",
         "border-r border-tab-border",
         tab.isActive 
           ? "bg-tab-active" 
           : "bg-tab-inactive hover:bg-tab-hover"
       )}
+      style={{ 
+        width: dynamicWidth ? `${dynamicWidth}px` : undefined,
+        maxWidth: dynamicWidth ? `${dynamicWidth}px` : '200px'
+      }}
     >
       {/* Tab content (drag handle area) */}
       <div 
         className="flex-1 flex items-center px-3 cursor-pointer min-w-0"
         onClick={() => onActivate(tab.id)}
+        onContextMenu={handleRightClick}
         {...dragHandleProps}
       >
         {tab.isLocked && (
@@ -163,9 +181,15 @@ const Tab: React.FC<TabProps> = ({
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={handleRenameSubmit}
-            onBlur={() => setIsRenaming(false)}
-            className="flex-1 text-sm bg-transparent border-none outline-none text-foreground"
+            onBlur={() => {
+              if (newTitle.trim() !== (doc?.name ?? tab.title)) {
+                onRename(tab.id, newTitle.trim());
+              }
+              setIsRenaming(false);
+            }}
+            className="flex-1 text-sm bg-input border border-border rounded px-1 outline-none text-foreground focus:ring-2 focus:ring-primary"
             autoFocus
+            onClick={(e) => e.stopPropagation()}
           />
         ) : (
           <span className="text-sm text-foreground truncate">
@@ -178,23 +202,18 @@ const Tab: React.FC<TabProps> = ({
         )}
       </div>
 
-      {/* Tab dropdown */}
-      <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-        <DropdownMenuTrigger asChild>
-          <button 
-            className={cn(
-              "flex items-center justify-center w-5 h-5 mr-1",
-              "opacity-0 group-hover:opacity-100 hover:bg-nav-hover rounded",
-              "transition-opacity duration-150"
-            )}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ChevronDown className="w-3 h-3 text-muted-foreground" />
-          </button>
-        </DropdownMenuTrigger>
+      {/* Tab context menu */}
+      <DropdownMenu open={isDropdownOpen} onOpenChange={(open) => {
+        setIsDropdownOpen(open);
+        if (!open) setContextMenuPosition(null);
+      }}>
         <DropdownMenuContent 
-          align="start" 
           className="w-48 bg-card border border-border shadow-dropdown z-50"
+          style={contextMenuPosition ? {
+            position: 'fixed',
+            left: contextMenuPosition.x,
+            top: contextMenuPosition.y
+          } : undefined}
         >
           <DropdownMenuItem 
             className={cn(
@@ -302,6 +321,7 @@ interface TabBarProps {
   onBack?: () => void;
   onForward?: () => void;
   panelId?: string;
+  containerWidth?: number;
 }
 
 const TabBar: React.FC<TabBarProps> = ({ 
@@ -321,10 +341,13 @@ const TabBar: React.FC<TabBarProps> = ({
   onReorderTabs,
   onBack,
   onForward,
-  panelId
+  panelId,
+  containerWidth
 }) => {
   const [showTabSearch, setShowTabSearch] = useState(false);
   const [showTabGroups, setShowTabGroups] = useState(false);
+  const tabContainerRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(0);
   const { 
     shouldStackTabs, 
     settings, 
@@ -334,6 +357,37 @@ const TabBar: React.FC<TabBarProps> = ({
     navigateBack,
     navigateForward 
   } = useTabManager();
+
+  // Measure available width for tabs
+  useEffect(() => {
+    const measureWidth = () => {
+      if (tabContainerRef.current) {
+        const containerRect = tabContainerRef.current.getBoundingClientRect();
+        // Account for navigation buttons (approx 80px) and controls (approx 120px)
+        const controlsWidth = 200;
+        setAvailableWidth(Math.max(0, containerRect.width - controlsWidth));
+      }
+    };
+
+    measureWidth();
+    const resizeObserver = new ResizeObserver(measureWidth);
+    if (tabContainerRef.current) {
+      resizeObserver.observe(tabContainerRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  // Calculate dynamic tab width
+  const calculateTabWidth = useMemo(() => {
+    if (availableWidth === 0 || tabs.length === 0) return 200; // default max width
+    
+    const minTabWidth = 80; // minimum tab width
+    const maxTabWidth = 200; // maximum tab width
+    const idealWidth = availableWidth / tabs.length;
+    
+    return Math.max(minTabWidth, Math.min(maxTabWidth, idealWidth));
+  }, [availableWidth, tabs.length]);
 
   // Check if tabs should be stacked
   const needsStacking = shouldStackTabs(panelId || 'default', tabs.length);
@@ -463,6 +517,7 @@ const TabBar: React.FC<TabBarProps> = ({
           onCopyPath={onCopyPath}
           onRevealInExplorer={onRevealInExplorer}
           dragHandleProps={{ ...attributes, ...listeners }}
+          dynamicWidth={calculateTabWidth}
         />
       </div>
     );
@@ -519,6 +574,17 @@ const TabBar: React.FC<TabBarProps> = ({
               }
             }}
           />
+          
+          {/* Add tab button - follows after the stacked tabs */}
+          <button 
+            onClick={onAddTab}
+            className="flex items-center justify-center w-8 h-8 hover:bg-nav-hover rounded border-r border-tab-border"
+            title="新建标签页 (Ctrl+T)"
+          >
+            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
         </div>
 
         {/* Controls */}
@@ -529,16 +595,6 @@ const TabBar: React.FC<TabBarProps> = ({
             title="搜索标签页 (Ctrl+P)"
           >
             <Search className="w-4 h-4 text-muted-foreground" />
-          </button>
-
-          <button 
-            onClick={onAddTab}
-            className="p-1 hover:bg-nav-hover rounded"
-            title="新建标签页 (Ctrl+T)"
-          >
-            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
           </button>
 
           <DropdownMenu>
@@ -554,12 +610,6 @@ const TabBar: React.FC<TabBarProps> = ({
               >
                 <Layers className="w-4 h-4 mr-2" />
                 {showTabGroups ? '隐藏' : '显示'}标签页组
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="text-sm hover:bg-secondary cursor-pointer"
-                onClick={onAddTab}
-              >
-                新标签页
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -578,7 +628,7 @@ const TabBar: React.FC<TabBarProps> = ({
   }
 
   return (
-    <div className="flex items-center bg-panel border-b border-border">
+    <div ref={tabContainerRef} className="flex items-center bg-panel border-b border-border">
       {/* Navigation controls */}
       <div className="flex items-center px-2 border-r border-border">
         <button className="p-1 hover:bg-nav-hover rounded" onClick={handleBack}>
@@ -599,6 +649,17 @@ const TabBar: React.FC<TabBarProps> = ({
             ))}
           </SortableContext>
         </DndContext>
+        
+        {/* Add tab button - follows after the last tab */}
+        <button 
+          onClick={onAddTab}
+          className="flex items-center justify-center w-8 h-8 hover:bg-nav-hover rounded border-r border-tab-border"
+          title="新建标签页 (Ctrl+T)"
+        >
+          <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
       </div>
 
       {/* Controls */}
@@ -609,16 +670,6 @@ const TabBar: React.FC<TabBarProps> = ({
           title="搜索标签页 (Ctrl+P)"
         >
           <Search className="w-4 h-4 text-muted-foreground" />
-        </button>
-
-        <button 
-          onClick={onAddTab}
-          className="p-1 hover:bg-nav-hover rounded"
-          title="新建标签页 (Ctrl+T)"
-        >
-          <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
         </button>
 
         {/* More options */}
@@ -635,12 +686,6 @@ const TabBar: React.FC<TabBarProps> = ({
             >
               <Layers className="w-4 h-4 mr-2" />
               {showTabGroups ? '隐藏' : '显示'}标签页组
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              className="text-sm hover:bg-secondary cursor-pointer"
-              onClick={onAddTab}
-            >
-              新标签页
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
